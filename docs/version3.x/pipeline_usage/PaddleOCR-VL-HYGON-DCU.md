@@ -2,9 +2,11 @@
 comments: true
 ---
 
-# PaddleOCR-VL 昇腾 NPU 环境配置教程
+# PaddleOCR-VL 海光 DCU 环境配置教程
 
-本教程是 PaddleOCR-VL 昇腾 NPU 的环境配置教程，目的是完成相关的环境配置，环境配置完毕后请参考 [PaddleOCR-VL 使用教程](./PaddleOCR-VL.md) 使用 PaddleOCR-VL。
+本教程是 PaddleOCR-VL 海光 DCU 的环境配置教程，目的是完成相关的环境配置，环境配置完毕后请参考 [PaddleOCR-VL 使用教程](./PaddleOCR-VL.md) 使用 PaddleOCR-VL。
+
+目前 PaddleOCR-VL 已在海光 K100AI 上完成精度、速度验证；鉴于硬件环境的多样性，其他海光 DCU 的兼容性尚未验证。我们诚挚欢迎社区用户在不同硬件上进行测试并反馈您的运行结果。
 
 ## 1. 环境准备
 
@@ -22,19 +24,29 @@ comments: true
 
 ```shell
 docker run -it \
+  --rm \
   --user root \
   --privileged \
-  -v /usr/local/Ascend/driver:/usr/local/Ascend/driver \
-  -v /usr/local/bin/npu-smi:/usr/local/bin/npu-smi \
-  -v /usr/local/dcmi:/usr/local/dcmi \
+  --device /dev/kfd \
+  --device /dev/dri \
+  --device /dev/mkfd \
+  --group-add video \
+  --cap-add SYS_PTRACE \
+  --security-opt seccomp=unconfined \
+  -v /opt/hyhal/:/opt/hyhal/:ro \
   --shm-size 64g \
   --network host \
-  ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlepaddle/paddleocr-vl:latest-npu \
+  ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlepaddle/paddleocr-vl:latest-hygon-dcu \
   /bin/bash
 # 在容器中调用 PaddleOCR CLI 或 Python API
 ```
 
-如果您希望在无法连接互联网的环境中启动服务，请将上述命令中的 `ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlepaddle/paddleocr-vl:latest-npu` 更换为离线版本镜像 `ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlepaddle/paddleocr-vl:latest-npu-offline`。
+如果您希望在无法连接互联网的环境中启动服务，请将上述命令中的 `ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlepaddle/paddleocr-vl:latest-hygon-dcu`（镜像的大小约为 22 GB）更换为离线版本镜像 `ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlepaddle/paddleocr-vl:latest-hygon-dcu-offline`（镜像的大小约为 24 GB）。
+
+> TIP:
+> 标签后缀为 `latest-xxx` 的镜像对应 PaddleOCR 的最新版本。如果希望使用特定版本的 PaddleOCR 镜像，可以将标签中的 `latest` 替换为对应版本号：`paddleocr<major>.<minor>`。
+> 例如：
+> `ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlepaddle/paddleocr-vl:paddleocr3.3-hygon-dcu-offline`
 
 ### 1.2 方法二：手动安装 PaddlePaddle 和 PaddleOCR
 
@@ -52,20 +64,19 @@ source .venv_paddleocr/bin/activate
 执行如下命令完成安装：
 
 ```shell
-python -m pip install paddlepaddle==3.2.0 -i https://www.paddlepaddle.org.cn/packages/stable/cpu/
-python -m pip install paddle-custom-npu==3.2.0 -i https://www.paddlepaddle.org.cn/packages/stable/npu/
+python -m pip install paddlepaddle-dcu==3.2.1 -i https://www.paddlepaddle.org.cn/packages/stable/dcu/
 python -m pip install -U "paddleocr[doc-parser]"
 ```
 
-> **请注意安装 3.2.0 及以上版本的飞桨框架。**
+> **请注意安装 3.2.1 及以上版本的飞桨框架。**
 
 ## 2. 快速开始
 
-NPU 暂时不支持使用 PaddlePaddle 推理方式推理，请参考使用下一节使用 vLLM 推理加速框架推理。
+请参考[PaddleOCR-VL 使用教程](./PaddleOCR-VL.md)相同章节，注意需要指定 `deivce="dcu"`。
 
 ## 3. 使用推理加速框架提升 VLM 推理性能
 
-此步骤主要介绍如何使用 vLLM 推理加速框架来提升 PaddleOCR-VL 的推理性能。
+默认配置下的推理性能未经过充分优化，可能无法满足实际生产需求。此步骤主要介绍如何使用 vLLM 推理加速框架来提升 PaddleOCR-VL 的推理性能。
 
 ### 3.1 启动 VLM 推理服务
 
@@ -75,16 +86,20 @@ PaddleOCR 提供了 Docker 镜像，用于快速启动 vLLM 推理服务。可�
 docker run -it \
   --user root \
   --privileged \
-  -v /usr/local/Ascend/driver:/usr/local/Ascend/driver \
-  -v /usr/local/bin/npu-smi:/usr/local/bin/npu-smi \
-  -v /usr/local/dcmi:/usr/local/dcmi \
+  --device /dev/kfd \
+  --device /dev/dri \
+  --device /dev/mkfd \
+  --group-add video \
+  --cap-add SYS_PTRACE \
+  --security-opt seccomp=unconfined \
+  -v /opt/hyhal/:/opt/hyhal/:ro \
   --shm-size 64g \
   --network host \
-  ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlepaddle/paddleocr-genai-vllm-server:latest-npu \
-  paddleocr genai_server --model_name PaddleOCR-VL-0.9B --host 0.0.0.0 --port 8118 --backend vllm
+  ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlepaddle/paddleocr-genai-vllm-server:latest-hygon-dcu \
+  paddleocr genai_server --model_name PaddleOCR-VL-1.5-0.9B --host 0.0.0.0 --port 8118 --backend vllm
 ```
 
-如果您希望在无法连接互联网的环境中启动服务，请将上述命令中的 `ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlepaddle/paddleocr-genai-vllm-server:latest-npu` 更换为离线版本镜像 `ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlepaddle/paddleocr-genai-vllm-server:latest-npu-offline`。
+如果您希望在无法连接互联网的环境中启动服务，请将上述命令中的 `ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlepaddle/paddleocr-genai-vllm-server:latest-hygon-dcu`（镜像的大小约为 25 GB）更换为离线版本镜像 `ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlepaddle/paddleocr-genai-vllm-server:latest-hygon-dcu-offline`（镜像的大小约为 27 GB）。
 
 启动 vLLM 推理服务时，我们提供了一套默认参数设置。如果您有调整显存占用等更多参数的需求，可以自行配置更多参数。请参考 [3.3.1 服务端参数调整](./PaddleOCR-VL.md#331-服务端参数调整) 创建配置文件，然后将该文件挂载到容器中，并在启动服务的命令中使用 `backend_config` 指定配置文件，例如：
 
@@ -92,19 +107,28 @@ docker run -it \
 docker run -it \
   --user root \
   --privileged \
-  -v /usr/local/Ascend/driver:/usr/local/Ascend/driver \
-  -v /usr/local/bin/npu-smi:/usr/local/bin/npu-smi \
-  -v /usr/local/dcmi:/usr/local/dcmi \
+  --device /dev/kfd \
+  --device /dev/dri \
+  --device /dev/mkfd \
+  --group-add video \
+  --cap-add SYS_PTRACE \
+  --security-opt seccomp=unconfined \
+  -v /opt/hyhal/:/opt/hyhal/:ro \
   -v vllm_config.yml:/tmp/vllm_config.yml \
   --shm-size 64g \
   --network host \
-  ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlepaddle/paddleocr-genai-vllm-server:latest-npu \
-  paddleocr genai_server --model_name PaddleOCR-VL-0.9B --host 0.0.0.0 --port 8118 --backend vllm --backend_config /tmp/vllm_config.yml
+  ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlepaddle/paddleocr-genai-vllm-server:latest-hygon-dcu \
+  paddleocr genai_server --model_name PaddleOCR-VL-1.5-0.9B --host 0.0.0.0 --port 8118 --backend vllm --backend_config /tmp/vllm_config.yml
 ```
+
+> TIP:
+> 标签后缀为 `latest-xxx` 的镜像对应 PaddleOCR 的最新版本。如果希望使用特定版本的 PaddleOCR 镜像，可以将标签中的 `latest` 替换为对应版本号：`paddleocr<major>.<minor>`。
+> 例如：
+> `ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlepaddle/paddleocr-genai-vllm-server:paddleocr3.3-hygon-dcu-offline`
 
 ### 3.2 客户端使用方法
 
-请参考[PaddleOCR-VL 使用教程](./PaddleOCR-VL.md) 相同章节。
+请参考 [PaddleOCR-VL 使用教程](./PaddleOCR-VL.md) 相同章节。
 
 ### 3.3 性能调优
 
@@ -116,7 +140,7 @@ docker run -it \
 
 此步骤主要介绍如何使用 Docker Compose 将 PaddleOCR-VL 部署为服务并调用，具体流程如下：
 
-1. 分别从 [此处](https://github.com/PaddlePaddle/PaddleOCR/blob/main/deploy/paddleocr_vl_docker/accelerators/npu/compose.yaml) 和 [此处](https://github.com/PaddlePaddle/PaddleOCR/blob/main/deploy/paddleocr_vl_docker/accelerators/npu/.env) 获取 Compose 文件与环境变量配置文件并下载到本地。
+1. 分别从 [此处](https://github.com/PaddlePaddle/PaddleOCR/blob/main/deploy/paddleocr_vl_docker/accelerators/hygon-dcu/compose.yaml) 和 [此处](https://github.com/PaddlePaddle/PaddleOCR/blob/main/deploy/paddleocr_vl_docker/accelerators/hygon-dcu/.env) 获取 Compose 文件与环境变量配置文件并下载到本地。
 
 2. 在 `compose.yaml` 和 `.env` 文件所在目录下执行以下命令启动服务器，默认监听 **8080** 端口：
 
@@ -134,7 +158,7 @@ docker run -it \
     paddleocr-vl-api             | INFO:     Uvicorn running on http://0.0.0.0:8080 (Press CTRL+C to quit)
     ```
 
-此方式基于 FastDeploy 框架对 VLM 推理进行加速，更适合生产环境部署。
+此方式基于 vLLM 框架对 VLM 推理进行加速，更适合生产环境部署。
 
 此外，使用此方式启动服务器后，除拉取镜像外，无需连接互联网。如需在离线环境中部署，可先在联网机器上拉取 Compose 文件中涉及的镜像，导出并传输至离线机器中导入，即可在离线环境下启动服务。
 
@@ -165,20 +189,20 @@ Docker Compose 通过读取 `.env` 和 `compose.yaml` 文件中配置，先后�
 </details>
 
 <details>
-<summary>2. 指定 PaddleOCR-VL 服务所使用的 NPU</summary>
+<summary>2. 指定 PaddleOCR-VL 服务所使用的 DCU</summary>
 
-编辑 <code>compose.yaml</code> 文件中的 <code>environment</code> 来更改所使用的 NPU。例如，如果您需要使用卡 1 进行部署，可以进行以下修改：
+编辑 <code>compose.yaml</code> 文件中的 <code>environment</code> 来更改所使用的 DCU。例如，如果您需要使用卡 1 进行部署，可以进行以下修改：
 
 ```diff
   paddleocr-vl-api:
     ...
     environment:
-+     - ASCEND_RT_VISIBLE_DEVICES: 1
++     - HIP_VISIBLE_DEVICES: 1
     ...
   paddleocr-vlm-server:
     ...
     environment:
-+     - ASCEND_RT_VISIBLE_DEVICES: 1
++     - HIP_VISIBLE_DEVICES: 1
     ...
 ```
 
@@ -196,7 +220,7 @@ Docker Compose 通过读取 `.env` 和 `compose.yaml` 文件中配置，先后�
   paddleocr-vlm-server:
     ...
     volumes: /path/to/your_config.yaml:/home/paddleocr/vlm_server_config.yaml
-    command: paddleocr genai_server --model_name PaddleOCR-VL-0.9B --host 0.0.0.0 --port 8118 --backend fastdeploy --backend_config /home/paddleocr/vlm_server_config.yaml
+    command: paddleocr genai_server --model_name PaddleOCR-VL-1.5-0.9B --host 0.0.0.0 --port 8118 --backend vllm --backend_config /home/paddleocr/vlm_server_config.yaml
     ...
 ```
 
